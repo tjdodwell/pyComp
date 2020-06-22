@@ -15,6 +15,8 @@ class Cantilever():
 
         self.numInterfaces = self.numPlies - 1
 
+        self.numLayers = self.numPlies + self.numInterfaces
+
         self.t = np.asarray([0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2])
 
         self.theta = np.asarray([0., -1., 0., -1., 0., -1., 0., -1., 0])
@@ -25,7 +27,12 @@ class Cantilever():
 
         self.L = [20., 100., np.sum(self.t)] # Dimension in x - y plane are set, z dimension will be adjusted according to stacking sequence
 
-        self.da = PETSc.DMDA().create([n[0], n[1], n[2]], dof=3, stencil_width=1)
+        self.da = PETSc.DMDA().create(self.n, dof=3, stencil_width=1)
+
+        self.da.setUniformCoordinates(xmax=self.L[0], ymax=self.L[1], zmax=self.L[2])
+        self.da.setMatType(PETSc.Mat.Type.AIJ)
+
+
 
         self.LayerCake() # Build layered composite from uniform mesh
 
@@ -60,42 +67,41 @@ class Cantilever():
         self.G23 = param[9]
         self.G13 = param[10]
 
-    def whichLayer(self, x):
+    def whichLayer(self, z):
         flag = False
-        ans = 0.0
+        ans = 0
         for i in range(self.numLayers):
-            if((x[2] < self.cutoff[i]) and flag == False):
-                ans = k
+            if((z < self.cutoff[i]) and flag == False):
+                ans = i
                 flag = True
-        return k
+        return ans
 
     def LayerCake(self):
 
-        uniform_coords = self.da.getCoordinates()
+        nnodes = int(self.da.getCoordinatesLocal()[ :].size/3)
+
+        c = np.transpose(self.da.getCoordinatesLocal()[:].reshape((nnodes,3)))
 
         self.cutoff = np.cumsum(self.t, dtype=float)
 
-        coords = np.zeros(uniform_coords.shape)
+        cnew = np.zeros(c.shape)
 
-        coords[0,:] = self.Lx * uniform_coords[0,:]
-        coords[1,:] = self.Ly * uniform_coords[1,:]
+        for i in range(c.shape[0]):
 
-        coords = np.zeros(uniform_coords.shape)
+            id = self.whichLayer(c[i,2]) # Which Layer
 
-        coords[0,:] = self.Lx * uniform_coords[0,:]
-        coords[1,:] = self.Ly * uniform_coords[1,:]
+            print(type(id))
 
-        for i in range(uniform_coords.shape[1]):
+            hz = (self.cutoff[id + 1] - self.cutoff[id]) / self.nel_per_layer[id]
 
-            id = self.whichLayer(uniform_coords[2,i]) # Which Layer
+            j = np.floor((c[i,2] - self.cutoff[id]) / hz)
 
-            hz = (self.cutoff[id + 1] - self.cutoff[id]) / nelz[id]
+            cnew[i,2] = self.cutoff[id] + j * hz
 
-            j = np.floor((uniform_coords[2,i] - self.cutoff[id]) / hz)
+        print('HERE!')
 
-            coords[2,i] = self.cutoff[id] + j * hz
+        #self.da.setCoordinate(coords) # Redefine coordinates in transformed state.
 
-        self.da.setCoordinate(coords) # Redefine coordinates in transformed state.
 
     def makeMaterials(self):
 
@@ -103,7 +109,7 @@ class Cantilever():
         lam = self.E_R * self.nu_R/((1+self.nu_R)*(1-2*self.nu_R))
         mu = self.E_R/(2.*(1.+self.nu_R));
         self.isotropic = np.zeros((6,6));
-        self.isotropic(0:3,0:3) = lam * np.ones((3,3));
+        self.isotropic[0:3,0:3] = lam * np.ones((3,3));
         for i in range(6):
             if(i < 3):
                 self.isotropic[i,i] += 2.0 * mu
@@ -170,3 +176,9 @@ class Cantilever():
         Q = 1.0
 
         return Q
+
+
+print("Yer boi")
+
+
+myModel = Cantilever()
