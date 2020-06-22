@@ -4,7 +4,7 @@ This is a lightweight (parallel) implementation of finite element method (FEM) f
 
 Code has been developed for solving simple mechanics problems to support development of new Bayesian methodologies with a larger EPSRC programme grant - called [CERTEST](https://www.composites-certest.com).
 
-** This is a new code, therefore which is gradually being tested, please use with a very healthy level of scepticism **
+** This is a new code, testing is being gradually added, please use with a very healthy level of scepticism **
 
 ## Installation
 
