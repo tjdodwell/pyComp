@@ -5,7 +5,7 @@
 To install this project you must first clone the project
 
 ```
-git clone 
+git clone https://github.com/tjdodwell/pyComp.git
 cd pyComp
 ```
 
