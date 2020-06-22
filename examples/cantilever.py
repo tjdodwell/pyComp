@@ -70,7 +70,9 @@ class Cantilever():
     def whichLayer(self, z):
         flag = False
         ans = 0
-        for i in range(self.numLayers):
+        for i in range(1,self.numLayers):
+            print("layer =" + str(i))
+            print("Num layers" + str(self.numLayers))
             if((z < self.cutoff[i]) and flag == False):
                 ans = i
                 flag = True
@@ -78,29 +80,29 @@ class Cantilever():
 
     def LayerCake(self):
 
-        nnodes = int(self.da.getCoordinatesLocal()[ :].size/3)
+        nnodes = int(self.da.getCoordinatesLocal()[:].size/3)
 
-        c = np.transpose(self.da.getCoordinatesLocal()[:].reshape((nnodes,3)))
+        c = self.da.getCoordinatesLocal()[:]
 
         self.cutoff = np.cumsum(self.t, dtype=float)
 
-        cnew = np.zeros(c.shape)
+        cnew = self.da.getCoordinatesLocal().copy()
 
-        for i in range(c.shape[0]):
+        for i in range(nnodes):
 
-            id = self.whichLayer(c[i,2]) # Which Layer
+            id = self.whichLayer(c[2 * nnodes + i]) # Which Layer
 
-            print(type(id))
+            print(id)
 
-            hz = (self.cutoff[id + 1] - self.cutoff[id]) / self.nel_per_layer[id]
+            hz = (self.cutoff[id] - self.cutoff[id-1]) / self.nel_per_layer[id]
 
-            j = np.floor((c[i,2] - self.cutoff[id]) / hz)
+            j = np.floor((c[2 * nnodes + i] - self.cutoff[id-1]) / hz)
 
-            cnew[i,2] = self.cutoff[id] + j * hz
+            cnew[2 * nnodes + i] = self.cutoff[id-1] + j * hz
 
-        print('HERE!')
 
-        #self.da.setCoordinate(coords) # Redefine coordinates in transformed state.
+
+        self.da.setCoordinates(cnew) # Redefine coordinates in transformed state.
 
 
     def makeMaterials(self):
