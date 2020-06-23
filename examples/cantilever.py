@@ -7,15 +7,19 @@ import numpy as np
 
 from numpy.linalg import inv
 
+from pyComp import *
+
 comm = mpi.COMM_WORLD
 
 class Cantilever():
 
-    def __init__(self, comm):
+    def __init__(self, param, comm):
 
         self.dim = 3
 
         self.comm = comm
+
+        self.param = param
 
         self.numPlies = 2
 
@@ -54,6 +58,8 @@ class Cantilever():
 
         self.isBnd = lambda x: self.isBoundary(x)
 
+        self.f = lambda x: self.rhs(x)
+
         self.da = PETSc.DMDA().create(self.n, dof=3, stencil_width=1)
 
         self.da.setUniformCoordinates(xmax=self.L[0], ymax=self.L[1], zmax=self.L[2])
@@ -74,20 +80,31 @@ class Cantilever():
 
         self.A_local = A_local
 
+        # Setup elements
+        self.fe = ElasticityQ1()
+
+        self.setMaterialParameters(self.param)
+
+        self.makeMaterials()
 
         # Build load vector as same for all solves
 
         #self.b = buildRHS(da, h, rhs)
 
     def isBoundary(self, x):
-        val = 0.0
+        vals = [0.0, 0.0, 0.0]
         output = False
+        dofs = None
         if(x[0] < 1e-6):
             output = True
             dofs = [0, 1, 2]
-            vals = [0.0, 0.0, 0.0]
 
-        return output, dofs, val
+        return output, dofs, vals
+
+    def rhs(self, x):
+        output = np.zeros((3,))
+        output[2] = -9.81
+        return output
 
     def setTheta(self, angles):
 
@@ -104,9 +121,9 @@ class Cantilever():
         self.E2 = param[3]
         self.E3 = param[4]
 
-        self.nu12 = param[5]
-        self.nu23 = param[6]
-        self.nu13 = param[7]
+        self.nu21 = param[5]
+        self.nu31 = param[6]
+        self.nu32 = param[7]
 
         self.G12 = param[8]
         self.G23 = param[9]
@@ -158,21 +175,25 @@ class Cantilever():
         # Orthotropic Composite
         S = np.zeros((6,6));
         S[0,0] = 1/self.E1
-        S[0,1] = -self.nu_21/self.E2
-        S[0,2] = -self.nu_31/self.E3;
+        S[0,1] = -self.nu21/self.E2
+        S[0,2] = -self.nu31/self.E3;
         S[1,0] = S[0,1]
         S[1,1] = 1/self.E2
-        S[1,2] = -self.nu_32/self.E3;
+        S[1,2] = -self.nu32/self.E3;
         S[2,0] = S[0,2]
         S[2,1] = S[1,2]
         S[2,2] = 1/self.E3;
-        S[3,3] = 1/self.G_23;
-        S[4,4] = 1/self.G_13;
-        S[5,5] = 1/self.G_12;
+        S[3,3] = 1/self.G23;
+        S[4,4] = 1/self.G13;
+        S[5,5] = 1/self.G12;
 
         self.composite = inv(S)
 
-
+    def getIndices(self,elem, dof = 3):
+        ind = np.empty(dof*elem.size, dtype=np.int32)
+        for i in range(dof):
+            ind[i::dof] = dof*elem + i
+        return ind
 
 
     def solve(self, theta, plotSolution = False, filename = "solution"):
@@ -190,20 +211,60 @@ class Cantilever():
         nnodes = int(self.da.getCoordinatesLocal()[ :].size/self.dim)
         coords = np.transpose(self.da.getCoordinatesLocal()[:].reshape((nnodes,self.dim)))
         for ie, e in enumerate(elem,0): # Loop over all local elements
-            print("This is an element!")
-            #Ke = self.fe.getLocalStiffness(coords[:,e], 1.0)
-            #self.A.setValuesLocal(e, e, Ke, PETSc.InsertMode.ADD_VALUES)
-            #b_local[e] = self.fe.getLoadVec(coords[:,e])
+            midpoint_z = np.mean(coords[2,e])
+            layerId = np.int(self.whichLayer(midpoint_z))
+            isComposite = False
+            if(self.theta[layerId] >= 0):
+                C = self.composite
+                isComposite = True
+                angle = self.theta[layerId]
+            else:
+                C = self.isotropic
+                angle = None
+
+            Ke = self.fe.getLocalStiffness(coords[:,e], C, isComposite, angle)
+
+            ind = self.getIndices(e)
+
+            self.A.setValuesLocal(ind, ind, Ke, PETSc.InsertMode.ADD_VALUES)
+            b_local[ind] = self.fe.getLoadVec(coords[:,e],  self.f)
+
         self.A.assemble()
         self.comm.barrier()
+
+        # Implement Boundary Conditions
+        rows = []
+        for i in range(nnodes):
+            flag, dofs, vals = self.isBoundary(coords[:,i])
+            if(flag): # It's Dirichlet
+                for j in range(len(dofs)): # For each of the constrained dofs
+                    index = 3 * i + dofs[j]
+                    rows.append(index)
+                    b_local[index] = vals[j]
+        rows = np.asarray(rows,dtype=np.int32)
+        self.A.zeroRowsLocal(rows, diag = 1.0)
+
+        self.scatter_l2g(b_local, b, PETSc.InsertMode.INSERT_VALUES)
 
         # Solve
 
         # Setup linear system vectors
         x = self.da.createGlobalVec()
         x.setRandom()
-        #xnorm = b.dot(x)/x.dot(self.A*x)
-        #x *= xnorm
+        xnorm = b.dot(x)/x.dot(self.A*x)
+        x *= xnorm
+
+        # Setup Krylov solver - currently using AMG
+        ksp = PETSc.KSP().create()
+        pc = ksp.getPC()
+        ksp.setType('cg')
+        pc.setType('gamg')
+
+        # Iteratively solve linear system of equations A*x=b
+        ksp.setOperators(self.A)
+        ksp.setInitialGuessNonzero(True)
+        ksp.setFromOptions()
+        ksp.solve(b, x)
 
         if(plotSolution): # Plot solution to vtk file
             viewer = PETSc.Viewer().createVTK(filename + ".vts", 'w', comm = comm)
@@ -217,9 +278,27 @@ class Cantilever():
         return Q
 
 
-print("Yer boi")
 
 
-myModel = Cantilever(comm)
+param = [ None ] * 11
+
+param[0] = 4.5  # E_R   GPa
+param[1] = 0.35 # nu_R
+
+param[2] = 135  # E1    GPa
+param[3] = 8.5  # E2    GPa
+param[4] = 8.5  # E3    GPa
+
+param[5] = 0.022    # nu_21
+param[6] = 0.022    # nu_31
+param[7] = 0.47     # nu_32
+
+param[8] = 5.0  # G_12 GPa
+param[9] = 5;   # G_13 GPa
+param[10] = 5;  # G_23 GPa
+
+myModel = Cantilever(param, comm)
 
 myModel.solve(None, True)
+
+print("Yer boi")

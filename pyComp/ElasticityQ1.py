@@ -11,30 +11,32 @@ class ElasticityQ1(HEX):
 
         self.dofel = 24
 
-    def getLocalStiffness(self, x, C, isAnisotropic = False, e, n):
-        Ke = np.zero((self.dofel, self.dofel))
+    def getLocalStiffness(self, x, C, isComposite, angle):
+        Ke = np.zeros((self.dofel, self.dofel))
         for ip in range(self.nip):
             J = np.matmul(x, self.dNdu[ip])
             dNdX = np.matmul(self.dNdu[ip],np.linalg.inv(J))
             # For Composite Elements
             if(isComposite):
-                hatC = self.RotateFourthOrderTensor(C, e)
+                hatC = self.RotateFourthOrderTensor(C, angle)
+            else:
+                hatC = C
 
             B = np.zeros((6, 24))
 
-            B(0,0:8) = dNdX(:,0); # e_11 = u_1,1
-            B(1,8:16) = dNdX(:,1); # e_22 = u_2,2
-            B(2,16:24) = dNdX(:,2); # e_33 = u_3,3
+            B[0,0:8] = dNdX[:,0]; # e_11 = u_1,1
+            B[1,8:16] = dNdX[:,1]; # e_22 = u_2,2
+            B[2,16:24] = dNdX[:,2]; # e_33 = u_3,3
 
-            B(3,8:16) = dNdX(:,2);	B(3,16:24) = dNdX(:,1);	# e_23 = u_2,3 + u_3,2
-            B(4,0:8) = dNdX(:,2);	B(4,16:24) = dNdX(:,0);	# e_13 = u_1,3 + u_3,1
-            B(5,0:8) = dNdX(:,1);	B(5,8:16) = dNdX(:,0);	# e_12 = u_1,2 + u_2,1
+            B[3,8:16] = dNdX[:,2];	B[3,16:24] = dNdX[:,1];	# e_23 = u_2,3 + u_3,2
+            B[4,0:8] = dNdX[:,2];	B[4,16:24] = dNdX[:,0];	# e_13 = u_1,3 + u_3,1
+            B[5,0:8] = dNdX[:,1];	B[5,8:16] = dNdX[:,0];	# e_12 = u_1,2 + u_2,1
 
             Ke += np.matmul(np.transpose(B),np.matmul(hatC,B)) * np.linalg.det(J) * self.IP_W[ip]
 
         return Ke
 
-    def getLoadVec(self, x, func ):
+    def getLoadVec(self, x, func):
         # getRHS - computes load vector
         # x - coordinates of element nodes np.array - dim by nodel
         # func - function handle to evaluate source function at given x in Omega
@@ -48,7 +50,7 @@ class ElasticityQ1(HEX):
 
         return fe
 
-    def RotateFourthOrderTensor(self, C, theta)
+    def RotateFourthOrderTensor(self, C, theta):
 
         # Rotation about x_3
         c = np.cos(theta); s = np.sin(theta);
@@ -68,6 +70,6 @@ class ElasticityQ1(HEX):
         R[5,1] = c * s;
         R[5,5] = (c * c) - (s * s);
 
-        Chat = np.matmult(R,np.matmul(C,np.transpose(R)));
+        Chat = np.matmul(R,np.matmul(C,np.transpose(R)));
 
         return Chat
