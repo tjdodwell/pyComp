@@ -27,13 +27,15 @@ class Cantilever():
 
         self.numLayers = self.numPlies + self.numInterfaces
 
-        #self.t = np.asarray([0.2, 0.02, 0.2])
+        self.t = np.asarray([2.0,2.0,2.0])
 
-        self.t = np.asarray([0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2])
+        #self.t = np.asarray([0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2])
 
-        #self.theta = np.asarray([0., -1., 0.])
+        self.theta = np.asarray([-1.,-1.,-1.])
 
-        self.theta = np.asarray([0., -1., 0., -1., 0., -1., 0., -1., 0])
+        #self.theta = np.asarray([0., -1., 0., -1., 0., -1., 0., -1., 0])
+
+        #self.theta = np.asarray([-1., -1., -1., -1., -1., -1., -1., -1., -1.])
 
         nx = 5
         ny = 2
@@ -41,7 +43,9 @@ class Cantilever():
         Lx = 100.
         Ly = 20.
 
-        self.nel_per_layer = np.asarray([2,1,2,1,2,1,2,1,2])
+
+        self.nel_per_layer = np.asarray([2,2,2])
+        #self.nel_per_layer = np.asarray([2,1,2,1,2,1,2,1,2])
 
         self.elementCutOffs = [0.0]
 
@@ -103,7 +107,7 @@ class Cantilever():
 
     def rhs(self, x):
         output = np.zeros((3,))
-        output[2] = -9.81
+        output[2] = -9.81 * 0.0001
         return output
 
     def setTheta(self, angles):
@@ -226,6 +230,7 @@ class Cantilever():
 
             ind = self.getIndices(e)
 
+
             self.A.setValuesLocal(ind, ind, Ke, PETSc.InsertMode.ADD_VALUES)
             b_local[ind] = self.fe.getLoadVec(coords[:,e],  self.f)
 
@@ -242,6 +247,7 @@ class Cantilever():
                     rows.append(index)
                     b_local[index] = vals[j]
         rows = np.asarray(rows,dtype=np.int32)
+
         self.A.zeroRowsLocal(rows, diag = 1.0)
 
         self.scatter_l2g(b_local, b, PETSc.InsertMode.INSERT_VALUES)
@@ -265,6 +271,8 @@ class Cantilever():
         ksp.setInitialGuessNonzero(True)
         ksp.setFromOptions()
         ksp.solve(b, x)
+
+        print(np.sum(np.abs(f[:])))
 
         if(plotSolution): # Plot solution to vtk file
             viewer = PETSc.Viewer().createVTK(filename + ".vts", 'w', comm = comm)

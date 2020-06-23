@@ -13,6 +13,11 @@ class ElasticityQ1(HEX):
 
     def getLocalStiffness(self, x, C, isComposite, angle):
         Ke = np.zeros((self.dofel, self.dofel))
+
+        index_u = 3 * np.arange(8)
+        index_v = 3 * np.arange(8) + 1
+        index_w = 3 * np.arange(8) + 2
+
         for ip in range(self.nip):
             J = np.matmul(x, self.dNdu[ip])
             dNdX = np.matmul(self.dNdu[ip],np.linalg.inv(J))
@@ -24,15 +29,17 @@ class ElasticityQ1(HEX):
 
             B = np.zeros((6, 24))
 
-            B[0,0:8] = dNdX[:,0]; # e_11 = u_1,1
-            B[1,8:16] = dNdX[:,1]; # e_22 = u_2,2
-            B[2,16:24] = dNdX[:,2]; # e_33 = u_3,3
+            B[0,index_u] = dNdX[:,0]; # e_11 = u_1,1
+            B[1,index_v] = dNdX[:,1]; # e_22 = u_2,2
+            B[2,index_w] = dNdX[:,2]; # e_33 = u_3,3
 
-            B[3,8:16] = dNdX[:,2];	B[3,16:24] = dNdX[:,1];	# e_23 = u_2,3 + u_3,2
-            B[4,0:8] = dNdX[:,2];	B[4,16:24] = dNdX[:,0];	# e_13 = u_1,3 + u_3,1
-            B[5,0:8] = dNdX[:,1];	B[5,8:16] = dNdX[:,0];	# e_12 = u_1,2 + u_2,1
+            B[3,index_v] = dNdX[:,2];	B[3,index_w] = dNdX[:,1];	# e_23 = u_2,3 + u_3,2
+            B[4,index_u] = dNdX[:,2];	B[4,index_w] = dNdX[:,0];	# e_13 = u_1,3 + u_3,1
+            B[5,index_u] = dNdX[:,1];	B[5,index_v] = dNdX[:,0];	# e_12 = u_1,2 + u_2,1
 
             Ke += np.matmul(np.transpose(B),np.matmul(hatC,B)) * np.linalg.det(J) * self.IP_W[ip]
+
+
 
         return Ke
 
@@ -40,15 +47,15 @@ class ElasticityQ1(HEX):
         # getRHS - computes load vector
         # x - coordinates of element nodes np.array - dim by nodel
         # func - function handle to evaluate source function at given x in Omega
-        fe = np.zeros(24)
+        fe = np.zeros((8,3))
         for ip in range(self.nip):
             J = np.matmul(x, self.dNdu[ip])
             x_ip = np.matmul(x,self.N[ip])
             val = func(x_ip)
             for i in range(3):
-                fe[i*8:(i+1)*8] = fe[i*8:(i+1)*8] + val[i] * self.N[ip] * np.linalg.det(J) * self.IP_W[ip]
+                fe[0:8,i] = fe[0:8,i] + val[i] * self.N[ip] * np.linalg.det(J) * self.IP_W[ip]
 
-        return fe
+        return fe.reshape(24)
 
     def RotateFourthOrderTensor(self, C, theta):
 
@@ -73,3 +80,9 @@ class ElasticityQ1(HEX):
         Chat = np.matmul(R,np.matmul(C,np.transpose(R)));
 
         return Chat
+
+    def getIndices(self,elem, i, dof = 3):
+        ind = np.empty(elem.size, dtype=np.int32)
+
+        ind[i::dof] = 3*elem + i
+        return ind
