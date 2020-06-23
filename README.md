@@ -35,9 +35,9 @@ python setup.py install
 
 All unit tests can be run by calling
 
-'''
+```
 pytest
-'''
+```
 
 in the main directory
 
