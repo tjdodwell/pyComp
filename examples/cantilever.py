@@ -11,38 +11,77 @@ class Cantilever():
 
     def __init__(self):
 
-        self.numPlies = 5
+        self.numPlies = 2
 
         self.numInterfaces = self.numPlies - 1
 
         self.numLayers = self.numPlies + self.numInterfaces
 
+        #self.t = np.asarray([0.2, 0.02, 0.2])
+
         self.t = np.asarray([0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2])
+
+        #self.theta = np.asarray([0., -1., 0.])
 
         self.theta = np.asarray([0., -1., 0., -1., 0., -1., 0., -1., 0])
 
-        self.nel_per_layer = np.asarray([4,2,4,2,4,2,4,2,4])
+        nx = 20
+        ny = 6
 
-        self.n = [10, 10, np.sum(self.nel_per_layer)] # Number of Nodes in each direction.
+        Lx = 100.
+        Ly = 20.
 
-        self.L = [20., 100., np.sum(self.t)] # Dimension in x - y plane are set, z dimension will be adjusted according to stacking sequence
+        self.nel_per_layer = np.asarray([2,1,2,1,2,1,2,1,2])
+
+        self.elementCutOffs = [0.0]
+
+        for i in range(self.nel_per_layer.size):
+
+            hz  = self.t[i] / self.nel_per_layer[i]
+
+            for j in range(self.nel_per_layer[i]):
+                self.elementCutOffs.append(self.elementCutOffs[-1] + hz)
+
+        self.n = [nx, ny, np.sum(self.nel_per_layer) + 1] # Number of Nodes in each direction.
+
+        self.L = [Lx, Ly, np.sum(self.nel_per_layer)] # Dimension in x - y plane are set, z dimension will be adjusted according to stacking sequence
+
+        self.isBnd = lambda x: self.isBoundary(x)
 
         self.da = PETSc.DMDA().create(self.n, dof=3, stencil_width=1)
 
         self.da.setUniformCoordinates(xmax=self.L[0], ymax=self.L[1], zmax=self.L[2])
+
         self.da.setMatType(PETSc.Mat.Type.AIJ)
-
-
 
         self.LayerCake() # Build layered composite from uniform mesh
 
-        #da.setMatType(PETSc.Mat.Type.IS)
+        # Setup global and local matrices + communicators
+
+        self.A = self.da.createMatrix()
+        r, _ = self.A.getLGMap() # Get local to global mapping
+        self.is_A = PETSc.IS().createGeneral(r.indices) # Create Index Set for local indices
+        A_local = self.A.createSubMatrices(self.is_A)[0] # Construct local submatrix on domain
+        vglobal = self.da.createGlobalVec()
+        vlocal = self.da.createLocalVec()
+        self.scatter_l2g = PETSc.Scatter().create(vlocal, None, vglobal, self.is_A)
+
+        self.A_local = A_local
+
 
         # Build load vector as same for all solves
 
         #self.b = buildRHS(da, h, rhs)
 
+    def isBoundary(self, x):
+        val = 0.0
+        output = False
+        if(x[0] < 1e-6):
+            output = True
+            dofs = [0, 1, 2]
+            vals = [0.0, 0.0, 0.0]
 
+        return output, dofs, val
 
     def setTheta(self, angles):
 
@@ -71,14 +110,12 @@ class Cantilever():
         flag = False
         ans = 0
         for i in range(1,self.numLayers):
-            print("layer =" + str(i))
-            print("Num layers" + str(self.numLayers))
             if((z < self.cutoff[i]) and flag == False):
                 ans = i
                 flag = True
         return ans
 
-    def LayerCake(self):
+    def LayerCake(self, plotMesh = True):
 
         nnodes = int(self.da.getCoordinatesLocal()[:].size/3)
 
@@ -89,21 +126,15 @@ class Cantilever():
         cnew = self.da.getCoordinatesLocal().copy()
 
         for i in range(nnodes):
-
-            id = self.whichLayer(c[2 * nnodes + i]) # Which Layer
-
-            print(id)
-
-            hz = (self.cutoff[id] - self.cutoff[id-1]) / self.nel_per_layer[id]
-
-            j = np.floor((c[2 * nnodes + i] - self.cutoff[id-1]) / hz)
-
-            cnew[2 * nnodes + i] = self.cutoff[id-1] + j * hz
-
-
+            cnew[3 * i + 2] = self.elementCutOffs[np.int(c[3 * i + 2])]
 
         self.da.setCoordinates(cnew) # Redefine coordinates in transformed state.
 
+        if(plotMesh):
+            x = self.da.createGlobalVec()
+            viewer = PETSc.Viewer().createVTK('initial_layer_cake.vts', 'w', comm = PETSc.COMM_WORLD)
+            x.view(viewer)
+            viewer.destroy()
 
     def makeMaterials(self):
 
@@ -136,7 +167,77 @@ class Cantilever():
         self.composite = inv(S)
 
 
+
+
     def solve(self, theta, plotSolution = False):
+
+        # Solve A * x = b
+
+        # Assemble Global Stifness Matrix
+
+        self.A = self.da.createMatrix()
+
+        b = self.da.createGlobalVec()
+        b_local = self.da.createLocalVec()
+
+        elem = self.da.getElements()
+        nnodes = int(self.da.getCoordinatesLocal()[ :].size/self.dim)
+        coords = np.transpose(self.da.getCoordinatesLocal()[:].reshape((nnodes,self.dim)))
+        for ie, e in enumerate(elem,0): # Loop over all local elements
+            Ke = self.fe.getLocalStiffness(coords[:,e], 1.0)
+            self.A.setValuesLocal(e, e, Ke, PETSc.InsertMode.ADD_VALUES)
+            b_local[e] = self.fe.getLoadVec(coords[:,e])
+        self.A.assemble()
+        self.comm.barrier()
+
+        # Implement Boundary Conditions
+        rows = []
+        for i in range(nnodes):
+            flag, dof, vals= self.isBoundary(coords[:,i])
+            if(flag): # It's Dirichlet
+                for j in range(dofs.len): # For each of the constrained dofs
+                    index = dofs[j]
+                    rows.append(index)
+                    b_local[index] = vals[j]
+        rows = np.asarray(rows,dtype=np.int32)
+        self.A.zeroRowsLocal(rows, diag = 1.0)
+
+        self.scatter_l2g(b_local, b, PETSc.InsertMode.INSERT_VALUES)
+
+        # Solve
+
+        # Setup linear system vectors
+        x = self.da.createGlobalVec()
+        x.set(0.0)
+
+        if(isCoarse == False):
+
+            # Setup Krylov solver - currently using AMG
+            ksp = PETSc.KSP().create()
+            pc = ksp.getPC()
+            ksp.setType('cg')
+            pc.setType('gamg')
+
+            # Iteratively solve linear system of equations A*x=b
+            ksp.setOperators(self.A)
+            ksp.setInitialGuessNonzero(True)
+            ksp.setFromOptions()
+            ksp.solve(b, x)
+
+        else:
+
+            self.buildCoarseSpace(self.A)
+
+            x = self.cS.coarseSolve(b)
+
+
+
+        if(plotSolution): # Plot solution to vtk file
+            viewer = PETSc.Viewer().createVTK(filename + ".vts", 'w', comm = comm)
+            x.view(viewer)
+            viewer.destroy()
+
+        return x
 
         A = buildElasticityMatrix(da, h, lamb, mu)
 
