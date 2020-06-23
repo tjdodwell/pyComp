@@ -1,12 +1,12 @@
 # pyComp
 
-This is a lightweight (parallel) implementation of finite element method (FEM) for solving composite structural analysis. The code is built on the library petsc4py and mpi4py. Codes run in both sequential and parallel modes.
+This is a lightweight parallel implementation of the finite element method (FEM) for solving composite structural problems. The code is built on the library [petsc4py](https://bitbucket.org/petsc/petsc4py/src/master/) and mpi4py. Codes run in both sequential and parallel modes.
 
-Code has been developed for solving simple mechanics problems to support development of new Bayesian methodologies with a larger EPSRC programme grant - called CERTEST.
+Code has been developed for solving simple mechanics problems to support the development of new Bayesian methodologies within a larger EPSRC programme grant - called [CERTEST](https://www.composites-certest.com).
 
-** This is a new code, therefore which is gradually being tested, please use with a very healthy level of scepticism **
+**This is a new code, testing is being gradually added, please use with a very healthy level of scepticism**
 
-## Installation
+## Installation - tested on Ubuntu and macOS Mojave 10.14.1
 
 To install this project you must first clone the project
 
@@ -32,3 +32,6 @@ The package can be installed by running setup.py
 ```
 python setup.py install
 ```
+
+## Basic Example
+
