@@ -11,36 +11,29 @@ class ElasticityQ1(HEX):
 
         self.dofel = 24
 
+        self.index_u = 3 * np.arange(8)
+        self.index_v = 3 * np.arange(8) + 1
+        self.index_w = 3 * np.arange(8) + 2
+
     def getLocalStiffness(self, x, C, isComposite, angle):
+
         Ke = np.zeros((self.dofel, self.dofel))
 
-        index_u = 3 * np.arange(8)
-        index_v = 3 * np.arange(8) + 1
-        index_w = 3 * np.arange(8) + 2
-
         for ip in range(self.nip):
+
             J = np.matmul(x, self.dNdu[ip])
+
             dNdX = np.matmul(self.dNdu[ip],np.linalg.inv(J))
+
             # For Composite Elements
             if(isComposite):
                 hatC = self.RotateFourthOrderTensor(C, angle)
             else:
                 hatC = C
 
-            B = np.zeros((6, 24))
-
-            B[0,index_u] = dNdX[:,0]; # e_11 = u_1,1
-            B[1,index_v] = dNdX[:,1]; # e_22 = u_2,2
-            B[2,index_w] = dNdX[:,2]; # e_33 = u_3,3
-
-            B[3,index_v] = dNdX[:,2];	B[3,index_w] = dNdX[:,1];	# e_23 = u_2,3 + u_3,2
-            B[4,index_u] = dNdX[:,2];	B[4,index_w] = dNdX[:,0];	# e_13 = u_1,3 + u_3,1
-            B[5,index_u] = dNdX[:,1];	B[5,index_v] = dNdX[:,0];	# e_12 = u_1,2 + u_2,1
+            B = self.computeBMatrix(dNdX)
 
             Ke += np.matmul(np.transpose(B),np.matmul(hatC,B)) * np.linalg.det(J) * self.IP_W[ip]
-
-
-
         return Ke
 
     def getLoadVec(self, x, func):
@@ -56,6 +49,21 @@ class ElasticityQ1(HEX):
                 fe[0:8,i] = fe[0:8,i] + val[i] * self.N[ip] * np.linalg.det(J) * self.IP_W[ip]
 
         return fe.reshape(24)
+
+
+    def computeBMatrix(self,dNdX):
+
+        B = np.zeros((6, 24))
+
+        B[0,self.index_u] = dNdX[:,0]; # e_11 = u_1,1
+        B[1,self.index_v] = dNdX[:,1]; # e_22 = u_2,2
+        B[2,self.index_w] = dNdX[:,2]; # e_33 = u_3,3
+
+        B[3,self.index_v] = dNdX[:,2];	B[3,self.index_w] = dNdX[:,1];	# e_23 = u_2,3 + u_3,2
+        B[4,self.index_u] = dNdX[:,2];	B[4,self.index_w] = dNdX[:,0];	# e_13 = u_1,3 + u_3,1
+        B[5,self.index_u] = dNdX[:,1];	B[5,self.index_v] = dNdX[:,0];	# e_12 = u_1,2 + u_2,1
+
+        return B
 
     def RotateFourthOrderTensor(self, C, theta):
 

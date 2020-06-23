@@ -43,11 +43,11 @@ in the main directory
 
 ## Basic Example - Cantilever Beam
 
-A simple example of a flat composite laminate made up of $5$ layers and $4$ interfaces, clamped at one end, and deforming under self weight is provided as a basic example. To run this example (sequentially)
+A simple example of a flat composite laminate made up of 5 layers and 4 interfaces, clamped at one end, and deforming under self weight is provided as a basic example. To run this example (sequentially)
 
-'''
+```
 cd examples
 python cantilever.py -ksp_monitor
-'''
+```
 
-The output to screen will show the iterations of the iterative solver. A `solution.vts' file will be generate. This can be opened using the open source software [paraview](https://www.paraview.org).
+The output to screen will show the iterations of the iterative solver. A `solution.vts` file will be generate. This can be opened using the open source software [paraview](https://www.paraview.org).

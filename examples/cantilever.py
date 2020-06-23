@@ -21,33 +21,29 @@ class Cantilever():
 
         self.param = param
 
-        self.numPlies = 2
+        self.numPlies = 1
 
         self.numInterfaces = self.numPlies - 1
 
         self.numLayers = self.numPlies + self.numInterfaces
 
-        self.t = np.asarray([2.0,2.0,2.0])
+        self.t = np.asarray([0.2, 0.02, 0.2, 0.02, 0.2])
 
-        #self.t = np.asarray([0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2, 0.02, 0.2])
-
-        self.theta = np.asarray([-1.,-1.,-1.])
-
-        #self.theta = np.asarray([0., -1., 0., -1., 0., -1., 0., -1., 0])
-
-        #self.theta = np.asarray([-1., -1., -1., -1., -1., -1., -1., -1., -1.])
-
-        nx = 5
-        ny = 2
-
-        Lx = 100.
-        Ly = 20.
+        self.theta = np.asarray([np.pi/4, -1.0, 0.0, -1.0, 3.*np.pi/4])
 
 
-        self.nel_per_layer = np.asarray([2,2,2])
-        #self.nel_per_layer = np.asarray([2,1,2,1,2,1,2,1,2])
+        nx = 50
+        ny = 10
+
+        Lx = 10.
+        Ly = 2.
+
+
+        self.nel_per_layer = np.asarray([2,2,2,2,2])
+
 
         self.elementCutOffs = [0.0]
+
 
         for i in range(self.nel_per_layer.size):
 
@@ -244,8 +240,6 @@ class Cantilever():
         ksp.setFromOptions()
         ksp.solve(b, x)
 
-        print(np.sum(np.abs(f[:])))
-
         if(plotSolution): # Plot solution to vtk file
             viewer = PETSc.Viewer().createVTK(filename + ".vts", 'w', comm = comm)
             x.view(viewer)
@@ -253,7 +247,7 @@ class Cantilever():
 
         # Post process all quantities of interest
 
-        Q = 1.0
+        Q = 1.0 # To do!
 
         return Q
 
@@ -271,7 +265,7 @@ param[4] = 8.5  # E3    GPa
 
 param[5] = 0.022    # nu_21
 param[6] = 0.022    # nu_31
-param[7] = 0.5     # nu_32
+param[7] = 0.45     # nu_32
 
 param[8] = 5.0  # G_12 GPa
 param[9] = 5;   # G_13 GPa
@@ -279,6 +273,6 @@ param[10] = 5;  # G_23 GPa
 
 myModel = Cantilever(param, comm)
 
-#myModel.solve(None, True)
+myModel.solve(None, True)
 
 print("Yer boi")
