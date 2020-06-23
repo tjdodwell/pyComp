@@ -274,5 +274,3 @@ param[10] = 5;  # G_23 GPa
 myModel = Cantilever(param, comm)
 
 myModel.solve(None, True)
-
-print("Yer boi")
