@@ -89,7 +89,9 @@ class Cantilever():
 
         self.setMaterialParameters(self.param)
 
-        self.makeMaterials()
+        self.isotropic, self.composite = makeMaterials(self.param)
+
+        print(self.composite)
 
         # Build load vector as same for all solves
 
@@ -162,36 +164,6 @@ class Cantilever():
             viewer = PETSc.Viewer().createVTK('initial_layer_cake.vts', 'w', comm = PETSc.COMM_WORLD)
             x.view(viewer)
             viewer.destroy()
-
-    def makeMaterials(self):
-
-        # Isotropic Resin
-        lam = self.E_R * self.nu_R/((1+self.nu_R)*(1-2*self.nu_R))
-        mu = self.E_R/(2.*(1.+self.nu_R));
-        self.isotropic = np.zeros((6,6));
-        self.isotropic[0:3,0:3] = lam * np.ones((3,3));
-        for i in range(6):
-            if(i < 3):
-                self.isotropic[i,i] += 2.0 * mu
-            else:
-                self.isotropic[i,i] += mu
-
-        # Orthotropic Composite
-        S = np.zeros((6,6));
-        S[0,0] = 1/self.E1
-        S[0,1] = -self.nu21/self.E2
-        S[0,2] = -self.nu31/self.E3;
-        S[1,0] = S[0,1]
-        S[1,1] = 1/self.E2
-        S[1,2] = -self.nu32/self.E3;
-        S[2,0] = S[0,2]
-        S[2,1] = S[1,2]
-        S[2,2] = 1/self.E3;
-        S[3,3] = 1/self.G23;
-        S[4,4] = 1/self.G13;
-        S[5,5] = 1/self.G12;
-
-        self.composite = inv(S)
 
     def getIndices(self,elem, dof = 3):
         ind = np.empty(dof*elem.size, dtype=np.int32)
@@ -299,7 +271,7 @@ param[4] = 8.5  # E3    GPa
 
 param[5] = 0.022    # nu_21
 param[6] = 0.022    # nu_31
-param[7] = 0.47     # nu_32
+param[7] = 0.5     # nu_32
 
 param[8] = 5.0  # G_12 GPa
 param[9] = 5;   # G_13 GPa
@@ -307,6 +279,6 @@ param[10] = 5;  # G_23 GPa
 
 myModel = Cantilever(param, comm)
 
-myModel.solve(None, True)
+#myModel.solve(None, True)
 
 print("Yer boi")

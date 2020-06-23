@@ -21,7 +21,7 @@ def defineTestMaterial():
 
     param[5] = 0.022    # nu_21
     param[6] = 0.022    # nu_31
-    param[7] = 0.47     # nu_32
+    param[7] = 0.5     # nu_32
 
     param[8] = 5.0  # G_12 GPa
     param[9] = 5;   # G_13 GPa
@@ -30,7 +30,7 @@ def defineTestMaterial():
 
     return param
 
-def test_num_elements(defineTestMaterial):
+def test_material_tensors(defineTestMaterial):
 
     isotropic, composite = makeMaterials(defineTestMaterial)
 
