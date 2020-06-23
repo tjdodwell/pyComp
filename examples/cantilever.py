@@ -7,9 +7,15 @@ import numpy as np
 
 from numpy.linalg import inv
 
+comm = mpi.COMM_WORLD
+
 class Cantilever():
 
-    def __init__(self):
+    def __init__(self, comm):
+
+        self.dim = 3
+
+        self.comm = comm
 
         self.numPlies = 2
 
@@ -169,7 +175,7 @@ class Cantilever():
 
 
 
-    def solve(self, theta, plotSolution = False):
+    def solve(self, theta, plotSolution = False, filename = "solution"):
 
         # Solve A * x = b
 
@@ -184,93 +190,23 @@ class Cantilever():
         nnodes = int(self.da.getCoordinatesLocal()[ :].size/self.dim)
         coords = np.transpose(self.da.getCoordinatesLocal()[:].reshape((nnodes,self.dim)))
         for ie, e in enumerate(elem,0): # Loop over all local elements
-            Ke = self.fe.getLocalStiffness(coords[:,e], 1.0)
-            self.A.setValuesLocal(e, e, Ke, PETSc.InsertMode.ADD_VALUES)
-            b_local[e] = self.fe.getLoadVec(coords[:,e])
+            print("This is an element!")
+            #Ke = self.fe.getLocalStiffness(coords[:,e], 1.0)
+            #self.A.setValuesLocal(e, e, Ke, PETSc.InsertMode.ADD_VALUES)
+            #b_local[e] = self.fe.getLoadVec(coords[:,e])
         self.A.assemble()
         self.comm.barrier()
-
-        # Implement Boundary Conditions
-        rows = []
-        for i in range(nnodes):
-            flag, dof, vals= self.isBoundary(coords[:,i])
-            if(flag): # It's Dirichlet
-                for j in range(dofs.len): # For each of the constrained dofs
-                    index = dofs[j]
-                    rows.append(index)
-                    b_local[index] = vals[j]
-        rows = np.asarray(rows,dtype=np.int32)
-        self.A.zeroRowsLocal(rows, diag = 1.0)
-
-        self.scatter_l2g(b_local, b, PETSc.InsertMode.INSERT_VALUES)
 
         # Solve
 
         # Setup linear system vectors
         x = self.da.createGlobalVec()
-        x.set(0.0)
-
-        if(isCoarse == False):
-
-            # Setup Krylov solver - currently using AMG
-            ksp = PETSc.KSP().create()
-            pc = ksp.getPC()
-            ksp.setType('cg')
-            pc.setType('gamg')
-
-            # Iteratively solve linear system of equations A*x=b
-            ksp.setOperators(self.A)
-            ksp.setInitialGuessNonzero(True)
-            ksp.setFromOptions()
-            ksp.solve(b, x)
-
-        else:
-
-            self.buildCoarseSpace(self.A)
-
-            x = self.cS.coarseSolve(b)
-
-
+        x.setRandom()
+        #xnorm = b.dot(x)/x.dot(self.A*x)
+        #x *= xnorm
 
         if(plotSolution): # Plot solution to vtk file
             viewer = PETSc.Viewer().createVTK(filename + ".vts", 'w', comm = comm)
-            x.view(viewer)
-            viewer.destroy()
-
-        return x
-
-        A = buildElasticityMatrix(da, h, lamb, mu)
-
-        A.assemble()
-
-        b = self.b.copy() # Copy right hand side
-
-        bcApplyWest(da, A, b) # Apply boundary conditions - updating A and b
-
-
-        pcbnn = PCBNN(A)
-
-        # Set initial guess
-        x = da.createGlobalVec()
-        x.setRandom()
-        xnorm = b.dot(x)/x.dot(A*x)
-        x *= xnorm
-
-        # Setup linear solver
-        ksp = PETSc.KSP().create()
-        ksp.setOperators(A)
-        ksp.setType(ksp.Type.PYTHON)
-        pyKSP = KSP_AMPCG(pcbnn)
-        pyKSP.callback = callback(da)
-        ksp.setPythonContext(pyKSP)
-        ksp.setInitialGuessNonzero(True)
-        ksp.setFromOptions()
-
-        ksp.solve(b, x) # Solve
-
-        if(plotSolution):
-
-            viewer = PETSc.Viewer().createVTK('solution_3d_asm.vts', 'w', comm = PETSc.COMM_WORLD)
             x.view(viewer)
             viewer.destroy()
 
@@ -284,4 +220,6 @@ class Cantilever():
 print("Yer boi")
 
 
-myModel = Cantilever()
+myModel = Cantilever(comm)
+
+myModel.solve(None, True)
