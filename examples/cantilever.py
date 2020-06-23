@@ -35,8 +35,8 @@ class Cantilever():
 
         self.theta = np.asarray([0., -1., 0., -1., 0., -1., 0., -1., 0])
 
-        nx = 20
-        ny = 6
+        nx = 5
+        ny = 2
 
         Lx = 100.
         Ly = 20.
