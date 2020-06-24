@@ -52,5 +52,5 @@ python cantilever.py -ksp_monitor
 
 The output to screen will show the iterations of the iterative solver. A `solution.vts` file will be generate. This can be opened using the open source software [paraview](https://www.paraview.org).
 
-![alt text](https://github.com/tjdodwell/pyComp/docs/master/cantilever.png?raw=true)
+![alt text](https://github.com/tjdodwell/pyComp/blob/master/docs/cantilever.png?raw=true)
 
