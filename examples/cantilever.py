@@ -87,12 +87,6 @@ class Cantilever():
 
         self.isotropic, self.composite = makeMaterials(self.param)
 
-        print(self.composite)
-
-        # Build load vector as same for all solves
-
-        #self.b = buildRHS(da, h, rhs)
-
     def isBoundary(self, x):
         vals = [0.0, 0.0, 0.0]
         output = False
@@ -168,7 +162,7 @@ class Cantilever():
         return ind
 
 
-    def solve(self, theta, plotSolution = False, filename = "solution"):
+    def solve(self, theta, plotSolution = False, filename = "solution", iterativeSolver = True):
 
         # Solve A * x = b
 
@@ -231,12 +225,19 @@ class Cantilever():
         # Setup Krylov solver - currently using AMG
         ksp = PETSc.KSP().create()
         pc = ksp.getPC()
-        ksp.setType('cg')
-        pc.setType('gamg')
+
+        if(iterativeSolver):
+            ksp.setType('cg')
+            pc.setType('gamg')
+        else:
+            ksp.setType('preonly')
+            pc.setType('lu')
+            #pc.setFactorSolverPackage('mumps')
 
         # Iteratively solve linear system of equations A*x=b
         ksp.setOperators(self.A)
-        ksp.setInitialGuessNonzero(True)
+        if(iterativeSolver):
+            ksp.setInitialGuessNonzero(True)
         ksp.setFromOptions()
         ksp.solve(b, x)
 
@@ -273,4 +274,4 @@ param[10] = 5;  # G_23 GPa
 
 myModel = Cantilever(param, comm)
 
-myModel.solve(None, True)
+myModel.solve(None, True, iterativeSolver = False)
