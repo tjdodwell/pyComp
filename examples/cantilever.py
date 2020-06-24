@@ -41,32 +41,11 @@ class Cantilever():
 
         self.nel_per_layer = np.asarray([2,2,2,2,2])
 
-
-        self.elementCutOffs = [0.0]
-
-
-        for i in range(self.nel_per_layer.size):
-
-            hz  = self.t[i] / self.nel_per_layer[i]
-
-            for j in range(self.nel_per_layer[i]):
-                self.elementCutOffs.append(self.elementCutOffs[-1] + hz)
-
-        self.n = [nx, ny, np.sum(self.nel_per_layer) + 1] # Number of Nodes in each direction.
-
-        self.L = [Lx, Ly, np.sum(self.nel_per_layer)] # Dimension in x - y plane are set, z dimension will be adjusted according to stacking sequence
-
         self.isBnd = lambda x: self.isBoundary(x)
 
         self.f = lambda x: self.rhs(x)
 
-        self.da = PETSc.DMDA().create(self.n, dof=3, stencil_width=1)
-
-        self.da.setUniformCoordinates(xmax=self.L[0], ymax=self.L[1], zmax=self.L[2])
-
-        self.da.setMatType(PETSc.Mat.Type.AIJ)
-
-        self.LayerCake() # Build layered composite from uniform mesh
+        self.da = LayerCake(nx, ny, Lx, Ly, self.t, self.nel_per_layer) # Build layered composite from uniform mesh
 
         # Setup global and local matrices + communicators
 
@@ -134,26 +113,6 @@ class Cantilever():
                 flag = True
         return ans
 
-    def LayerCake(self, plotMesh = True):
-
-        nnodes = int(self.da.getCoordinatesLocal()[:].size/3)
-
-        c = self.da.getCoordinatesLocal()[:]
-
-        self.cutoff = np.cumsum(self.t, dtype=float)
-
-        cnew = self.da.getCoordinatesLocal().copy()
-
-        for i in range(nnodes):
-            cnew[3 * i + 2] = self.elementCutOffs[np.int(c[3 * i + 2])]
-
-        self.da.setCoordinates(cnew) # Redefine coordinates in transformed state.
-
-        if(plotMesh):
-            x = self.da.createGlobalVec()
-            viewer = PETSc.Viewer().createVTK('initial_layer_cake.vts', 'w', comm = PETSc.COMM_WORLD)
-            x.view(viewer)
-            viewer.destroy()
 
     def getIndices(self,elem, dof = 3):
         ind = np.empty(dof*elem.size, dtype=np.int32)
