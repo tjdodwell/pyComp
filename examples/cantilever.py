@@ -243,7 +243,7 @@ class Cantilever():
 
         # Post process all quantities of interest
 
-        Q = x[self.Qdof] # To do!
+        Q = x[self.Qdof]
 
         return Q
 
