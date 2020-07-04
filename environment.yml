@@ -15,7 +15,9 @@ dependencies:
     - slepc4py=3.9.0
     - vtk
     - ipywidgets
+    - mkl-service
     - pip:
       - pythreejs==1.0.0
       - pytest
       - jupyterlab
+      - pymc3

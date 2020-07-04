@@ -19,7 +19,7 @@ comm = mpi.COMM_WORLD
 
 class Cantilever():
 
-    def __init__(self, param, comm):
+    def __init__(self, param, comm = None):
 
         self.dim = 3
 
@@ -248,7 +248,7 @@ class Cantilever():
         return Q
 
 
-
+"""
 
 param = [ None ] * 11
 
@@ -286,3 +286,5 @@ for i in range(Nsamples):
     F = myModel.solve(baseAngles + theta[i,:], True, iterativeSolver = False)
 
     print(F)
+    
+"""
