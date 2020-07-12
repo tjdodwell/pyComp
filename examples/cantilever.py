@@ -37,7 +37,7 @@ class Cantilever():
 
         self.t = np.asarray([0.2, 0.02, 0.2, 0.02, 0.2])
 
-        self.theta = np.asarray([np.pi/4, -1.0, 0.0, -1.0, 3.*np.pi/4])
+        self.theta = np.asarray([np.pi/4, -123.0, 0.0, -123.0, 3.*np.pi/4])
 
 
         nx = 50
@@ -168,7 +168,7 @@ class Cantilever():
             layerId = np.int(self.whichLayer(midpoint_z)) # Finds which layer element lives in
             isComposite = False
 
-            if(self.theta[layerId] >= 0): # Composite - theta is greater than 0
+            if(self.theta[layerId] >= -100.0): # Composite - theta is greater than 0
                 C = self.composite
                 isComposite = True
                 angle = self.theta[layerId]
