@@ -27,7 +27,7 @@ class Cantilever():
 
         self.param = param
 
-        self.numPlies = 1
+        self.numPlies = 3
 
         self.numDataPoints = 12
 
@@ -137,7 +137,7 @@ class Cantilever():
             if((z < self.cutoff[i]) and flag == False):
                 ans = i
                 flag = True
-    
+
         return ans
 
     def getIndices(self,elem, dof = 3):
